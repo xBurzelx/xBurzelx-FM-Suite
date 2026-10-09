@@ -1,0 +1,59 @@
+{
+  "name": "xburzelx-fm-suite",
+  "version": "0.0.3",
+  "description": "xBurzelx FM Suite - Taktiken, Training, Standards & Manager Tools",
+  "main": "electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "package": "vite build && electron-builder",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "vite build && electron-builder"
+  },
+"build": {
+    "appId": "com.xburzelx.fmsuite",
+    "productName": "xBurzelx FM Suite",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "xburzelx",
+        "repo": "xBurzelx-FM-Suite"
+      }
+    ],
+    "directories": {
+      "output": "dist_electron"
+    },
+    "win": {
+      "icon": "src/assets/images/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "xBurzelx FM Suite",
+      "artifactName": "${productName}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.2",
+    "autoprefixer": "^10.6.1",
+    "concurrently": "^10.0.5",
+    "electron": "^44.7.0",
+    "electron-builder": "^25.1.8",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.3",
+    "wait-on": "^9.5.1"
+  },
+  "dependencies": {
+    "adm-zip": "^0.6.1",
+    "electron-updater": "^6.8.9",
+    "lucide-react": "^1.52.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  }
+}
