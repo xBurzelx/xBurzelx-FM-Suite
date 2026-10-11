@@ -9,6 +9,16 @@ import AdmZip from 'adm-zip';
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
 
+// Feed-URL direkt und unmissverständlich zuweisen
+autoUpdater.setFeedURL({
+  provider: 'github',
+  owner: 'xburzelx',
+  repo: 'xBurzelx-FM-Suite'
+});
+
+autoUpdater.logger = console;
+autoUpdater.autoDownload = true;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -134,6 +144,16 @@ ipcMain.handle('app:get-version', () => {
   return app.getVersion();
 });
 
+// Korrigierter Handler für den Auto-Updater (angepasst an preload.cjs)
+ipcMain.handle('app:check-for-updates', async () => {
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return { success: true, updateInfo: result };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // Download & Entpacken aus links.json
 ipcMain.handle('download-file', async (event, { url, fileName, groupName }) => {
   if (!url.endsWith('.fmf') && !url.endsWith('.zip') && !url.endsWith('.lnc')) {
@@ -183,7 +203,6 @@ ipcMain.handle('open-folder', async (event, groupName) => {
 
 // --- CONFIG.XML GENERATOR HANDLER ---
 
-// 1. Ordner-Auswahldialog mit Parent Window
 ipcMain.handle('select-facepack-folder', async (event) => {
   const webContents = event.sender;
   const win = BrowserWindow.fromWebContents(webContents);
@@ -199,7 +218,6 @@ ipcMain.handle('select-facepack-folder', async (event) => {
   return result.filePaths[0];
 });
 
-// 2. Pfad / Ordner / Log öffnen
 ipcMain.handle('open-path', async (event, targetPath) => {
   if (targetPath && fs.existsSync(targetPath)) {
     await shell.openPath(targetPath);
@@ -208,7 +226,6 @@ ipcMain.handle('open-path', async (event, targetPath) => {
   return false;
 });
 
-// Helper: Sicherer Zielpfad bei Namenskonflikten
 function getUniqueDestination(folderPath, desiredName) {
   const ext = path.extname(desiredName);
   const name = path.basename(desiredName, ext);
@@ -222,7 +239,6 @@ function getUniqueDestination(folderPath, desiredName) {
   return targetPath;
 }
 
-// Helper: Verschieben in Unterordner
 function moveToFolder(basePath, sourcePath, destinationFolder, prefix) {
   const relativePath = path.relative(basePath, sourcePath);
   const safeName = relativePath.replace(/\\/g, '__').replace(/\//g, '__');
@@ -233,7 +249,6 @@ function moveToFolder(basePath, sourcePath, destinationFolder, prefix) {
   return targetPath;
 }
 
-// 3. Haupt-Verarbeitungslogik für config.xml
 ipcMain.handle('process-facepack', async (event, basePath) => {
   try {
     const stats = {
@@ -262,7 +277,6 @@ ipcMain.handle('process-facepack', async (event, basePath) => {
 
     fs.writeFileSync(LOG_PATH, `=== xBurzelx Facepack Tool v1.1 ===\nOrdner: ${basePath}\n\n`, 'utf-8');
 
-    // Alte config.xml auslesen
     const existingIds = new Set();
     if (fs.existsSync(CONFIG_PATH)) {
       try {
@@ -280,7 +294,6 @@ ipcMain.handle('process-facepack', async (event, basePath) => {
       log(`Keine bestehende config.xml gefunden. Neue wird angelegt.`);
     }
 
-    // Bilder rekursiv sammeln
     const supportedExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
     const excludedDirs = ['__invalid_files', '__duplicates', '__pycache__', '.git', 'node_modules', 'build', 'dist'];
 
@@ -329,7 +342,6 @@ ipcMain.handle('process-facepack', async (event, basePath) => {
 
       stats.files_processed++;
 
-      // Check 1: Ist Dateiname eine reine Zahl?
       if (!/^\d+$/.test(fileStem)) {
         moveToFolder(basePath, filePath, INVALID_DIR, 'INVALID_NAME');
         stats.ids_invalid++;
@@ -337,7 +349,6 @@ ipcMain.handle('process-facepack', async (event, basePath) => {
         continue;
       }
 
-      // Check 2: Duplikats-Prüfung
       if (foundIds.has(fileStem)) {
         moveToFolder(basePath, filePath, DUPLICATE_DIR, 'DUPLICATE');
         stats.ids_duplicates++;
@@ -356,16 +367,13 @@ ipcMain.handle('process-facepack', async (event, basePath) => {
     stats.ids_missing_files = missingIdsArray.length;
     stats.missing_image_ids = missingIdsArray;
 
-    // Backup erstellen
     if (fs.existsSync(CONFIG_PATH)) {
       fs.copyFileSync(CONFIG_PATH, BACKUP_PATH);
       log(`Backup erstellt: ${BACKUP_PATH}`);
     }
 
-    // Kombinieren & Numerisch sortieren
     const allIds = Array.from(new Set([...existingIds, ...foundIds])).sort((a, b) => Number(a) - Number(b));
 
-    // Neue config.xml schreiben
     let xmlContent = `<record>\n\t<boolean id="preload" value="false"/>\n\t<boolean id="amap" value="false"/>\n\t<list id="maps">\n`;
     allIds.forEach((id) => {
       xmlContent += `\t\t<record from="${id}" to="graphics/pictures/person/${id}/portrait"/>\n`;
