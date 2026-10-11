@@ -17,17 +17,14 @@ autoUpdater.setFeedURL({
 });
 
 autoUpdater.logger = console;
-autoUpdater.autoDownload = true;
+autoUpdater.autoDownload = false; // Erst prüfen, um Fehlalarme zu vermeiden
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
-// --- AUTO-UPDATER KONFIGURATION ---
-autoUpdater.logger = console;
-autoUpdater.autoDownload = true;
-
+// --- AUTO-UPDATER EVENT-LOGGER ---
 autoUpdater.on('checking-for-update', () => {
   console.log('[AutoUpdater] Prüfe auf Updates...');
 });
@@ -45,13 +42,12 @@ autoUpdater.on('error', (err) => {
 });
 
 autoUpdater.on('update-downloaded', () => {
-  console.log('[AutoUpdater] Update heruntergeladen. Wird beim nächsten Beenden installiert.');
+  console.log('[AutoUpdater] Update heruntergeladen.');
 });
 
 // Basis-Pfad für den Football Manager im Dokumente-Ordner des Nutzers
 const fmBaseDir = path.join(os.homedir(), 'Documents', 'Sports Interactive', 'Football Manager 2026');
 
-// Hilfsfunktion: Ermittelt den FM-Zielordner basierend auf der Kategorie aus deiner links.json
 function getTargetFolder(groupName) {
   if (groupName.includes('Taktiken')) return path.join(fmBaseDir, 'tactics');
   if (groupName.includes('Standardsituationen')) return path.join(fmBaseDir, 'set-pieces');
@@ -60,7 +56,6 @@ function getTargetFolder(groupName) {
   return path.join(os.homedir(), 'Downloads');
 }
 
-// Hilfsfunktion: Unterstützt HTTPS-Downloads inkl. 301/302 Redirects
 function downloadStream(url, fileStream, resolve, reject) {
   https.get(url, (response) => {
     if (response.statusCode === 301 || response.statusCode === 302) {
@@ -96,7 +91,6 @@ function createWindow() {
     }
   });
 
-  // Externe Web-Links im Standard-Browser öffnen
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http:') || url.startsWith('https:')) {
       shell.openExternal(url);
@@ -111,15 +105,6 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
-
-  // Update-Prüfung ausführen, wenn das Fenster sichtbar ist (nur im gebauten Zustand)
-  mainWindow.once('ready-to-show', () => {
-    if (!isDev) {
-      autoUpdater.checkForUpdatesAndNotify();
-    } else {
-      console.log('[AutoUpdater] Dev-Modus aktiv: Auto-Updater wird übersprungen.');
-    }
-  });
 }
 
 app.whenReady().then(() => {
@@ -144,17 +129,17 @@ ipcMain.handle('app:get-version', () => {
   return app.getVersion();
 });
 
-// Korrigierter Handler für den Auto-Updater (angepasst an preload.cjs)
+// Korrigierter Handler für den Auto-Updater
 ipcMain.handle('app:check-for-updates', async () => {
   try {
     const result = await autoUpdater.checkForUpdates();
     return { success: true, updateInfo: result };
   } catch (error) {
+    console.error('[AutoUpdater] IPC Fehler:', error);
     return { success: false, error: error.message };
   }
 });
 
-// Download & Entpacken aus links.json
 ipcMain.handle('download-file', async (event, { url, fileName, groupName }) => {
   if (!url.endsWith('.fmf') && !url.endsWith('.zip') && !url.endsWith('.lnc')) {
     await shell.openExternal(url);
@@ -191,7 +176,6 @@ ipcMain.handle('download-file', async (event, { url, fileName, groupName }) => {
   }
 });
 
-// Ordner direkt im Explorer öffnen
 ipcMain.handle('open-folder', async (event, groupName) => {
   const targetFolder = getTargetFolder(groupName);
   if (fs.existsSync(targetFolder)) {
